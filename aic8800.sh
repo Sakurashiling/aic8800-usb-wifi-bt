@@ -151,6 +151,8 @@ aic_load_fw
 aic8800_fdrv
 aic_btusb
 EOF
+    # 确保蓝牙服务开机自启（防止被禁用后重启蓝牙丢失）
+    systemctl enable bluetooth 2>/dev/null || true
 }
 
 verify() {
