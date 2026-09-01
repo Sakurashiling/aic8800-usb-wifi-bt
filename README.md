@@ -68,6 +68,14 @@ AIC8800 网卡插入后会额外暴露一个 USB 存储设备（`1111:1111`）�
 
 标准 `eject` 关不掉它。本脚本通过两个 vendor SCSI 命令（`0xF3` GetHippo → `0xF2` Set_CS1_0）隐藏该盘，并部署 udev 规则 + systemd 服务，**插上即自动关盘**。
 
+## 🔧 固件选择修复（88M80 WiFi 连不上）
+
+88M80 这类带 MCU 的 AIC8800D80 网卡，驱动源码里 `IS_CHIP_ID_H()` 判断会误判
+（chip_id 的 H 位未设置），导致加载错误的 standard 固件
+（`fmacfw_8800d80_u02.bin`），表现为 **WiFi 关联超时连不上**（5G/2.4G 都卡
+`associating`）。安装脚本会在编译前自动把该判断改成 `if (1)`，强制加载
+**H-variant combo 固件**（`fmacfw_8800d80_h_u02.bin`）。
+
 ## 📋 支持平台
 
 | 项目 | 要求 |

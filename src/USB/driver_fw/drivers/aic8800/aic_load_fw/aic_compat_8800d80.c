@@ -463,7 +463,7 @@ int aicfw_download_fw_8800d80(struct aic_usb_dev *usb_dev)
                 return -1;
             }
 
-            if (IS_CHIP_ID_H()){
+            if (1){
                 if(rwnx_plat_bin_fw_upload_android(usb_dev, RAM_FMAC_FW_ADDR_8800D80_U02, FW_BASE_NAME_8800D80_H_U02))
                     return -1;
             } else {

@@ -88,6 +88,19 @@ install_firmware() {
     log_info "固件已安装到 /lib/firmware/（含 aic8800D80 等各型号）"
 }
 
+# 修复固件选择：88M80 卡 chip_id 误判（IS_CHIP_ID_H 返回 false）导致加载
+# standard 固件、WiFi 关联超时连不上。强制加载 H-variant combo 固件（幂等）
+patch_fw_select() {
+    local fw_file="$DRV_DIR/aic8800/aic_load_fw/aic_compat_8800d80.c"
+    if ! grep -q 'IS_CHIP_ID_H()' "$fw_file"; then
+        log_info "固件选择已修复（H-variant），跳过"
+        return
+    fi
+    [ -f "$fw_file.bak" ] || cp "$fw_file" "$fw_file.bak"
+    sed -i 's/if (IS_CHIP_ID_H()){/if (1){/' "$fw_file"
+    log_info "已强制加载 H-variant 固件（修复 88M80 WiFi 连不上）"
+}
+
 build_drivers() {
     log_info "编译驱动（可能需要几分钟）..."
     local log
@@ -212,6 +225,7 @@ do_install() {
     clean_old
     patch_bt
     install_firmware
+    patch_fw_select
     build_drivers  || die "编译失败，安装中止"
     install_modules
     install_udisk_off
