@@ -1,0 +1,41 @@
+# Devenv
+/.devenv*
+/devenv.local.nix
+
+# direnv
+/.direnv
+
+# pre-commit
+/.pre-commit-config.yaml
+
+# Local VS Code configuration
+/.vscode*
+
+# Kernel build artifacts
+/*.deb
+/*.buildinfo
+/*.changes
+/.pc
+
+# Output folder
+/out
+
+# 内核编译产物
+*.o
+*.ko
+*.mod
+*.mod.c
+*.mod.o
+*.symvers
+*.order
+*.cmd
+modules.order
+Module.symvers
+.tmp_versions/
+.*.cmd
+
+# 备份 / patch 残留
+*.bak
+*.orig
+*.rej
+*~
