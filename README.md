@@ -62,11 +62,11 @@ bluetoothctl
 └── README.md
 ```
 
-## 🛡️ 关盘功能说明
+## 🛡️ 网卡盘隐藏说明
 
 AIC8800 网卡插入后会额外暴露一个 USB 存储设备（`1111:1111`）——即网卡自带的「盘」，里面装着 Windows 驱动 `Wifi6_install.exe`。
 
-标准 `eject` 关不掉它。本脚本通过两个 vendor SCSI 命令（`0xF3` GetHippo → `0xF2` Set_CS1_0）隐藏该盘，并部署 udev 规则 + systemd 服务，**插上即自动关盘**。
+标准 `eject` 关不掉它，且厂商的 SCSI 模式切换命令（`0xF3`/`0xF2`）会干扰 WiFi 固件。本脚本改用**纯配置层**的 udev 规则（`UDISKS_IGNORE`）让系统不挂载该盘——**不弹窗、不影响 WiFi**。
 
 ## 🔧 固件选择修复（88M80 WiFi 连不上）
 

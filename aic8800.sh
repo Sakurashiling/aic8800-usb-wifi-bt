@@ -125,55 +125,15 @@ install_modules() {
     log_info "模块已安装到 $MODDEST"
 }
 
-# 部署关盘功能：关闭 1111:1111 虚拟U盘（vendor SCSI 命令 f3→f2）
+# 部署隐藏网卡盘功能：1111:1111 虚拟U盘用 UDISKS_IGNORE 忽略（纯配置层，不碰 USB，不干扰 WiFi）
 install_udisk_off() {
-    log_info "部署自动关闭网卡盘功能（1111:1111 虚拟U盘）..."
-
-    cat > "$UDISK_BIN" <<'EOF'
-#!/bin/bash
-# 关闭 AIC8800 复合卡的虚拟 U 盘 (1111:1111)，防止 GNOME 挂载 "WIFI driver"
-set -u
-MSG1="555342438765432100000000000010fd0000000000000000000000000000f3"
-MSG2="555342438765432100000000000010fd0000000000000000000000000000f2"
-sleep 1
-dev=""
-for d in /sys/bus/usb/devices/[0-9]*-[0-9]*; do
-    if [ -f "$d/idVendor" ] && [ "$(cat "$d/idVendor" 2>/dev/null)" = "1111" ] \
-       && [ "$(cat "$d/idProduct" 2>/dev/null)" = "1111" ]; then
-        dev="$d"; break
-    fi
-done
-[ -n "$dev" ] || exit 0
-devname=$(basename "$dev")
-echo "${devname}:1.0" > /sys/bus/usb/drivers/usb-storage/unbind 2>/dev/null || true
-sleep 0.3
-/usr/sbin/usb_modeswitch -v 1111 -p 1111 -M "$MSG1" -2 "$MSG2" >/dev/null 2>&1 || true
-exit 0
-EOF
-    chmod 755 "$UDISK_BIN"
-
+    log_info "部署隐藏网卡盘功能（1111:1111，不挂载不弹窗，不影响 WiFi）..."
     cat > "$UDISK_RULE" <<'EOF'
-# AIC8800 复合卡：插入后自动关闭虚拟 U 盘 (1111:1111)
-SUBSYSTEM=="usb", ACTION=="add", ATTR{idVendor}=="1111", ATTR{idProduct}=="1111", TAG+="systemd", ENV{SYSTEMD_WANTS}="aic8800-udisk-off@%k.service"
+# AIC8800：隐藏虚拟 U 盘（1111:1111），不挂载不弹窗，不影响 WiFi
+SUBSYSTEM=="block", ATTRS{idVendor}=="1111", ATTRS{idProduct}=="1111", ENV{UDISKS_IGNORE}="1"
 EOF
-
-    cat > "$UDISK_SVC" <<'EOF'
-[Unit]
-Description=Disable AIC8800 virtual U-disk (1111:1111)
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/aic8800-udisk-off
-EOF
-
     udevadm control --reload-rules
-    systemctl daemon-reload
-
-    # 若设备当前已插入，立即关一次盘
-    if lsusb 2>/dev/null | grep -q '1111:1111'; then
-        "$UDISK_BIN" || true
-        log_info "已关闭当前网卡的盘"
-    fi
+    log_info "隐藏网卡盘功能已部署"
 }
 
 load_modules() {
