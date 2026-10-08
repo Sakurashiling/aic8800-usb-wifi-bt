@@ -45,7 +45,7 @@ install_deps() {
     log_info "检查依赖..."
     local missing=()
     local p
-    for p in build-essential bc usb-modeswitch bluez "linux-headers-$KVER"; do
+    for p in build-essential bc usb-modeswitch bluez dkms "linux-headers-$KVER"; do
         dpkg -s "$p" >/dev/null 2>&1 || missing+=("$p")
     done
     if [ ${#missing[@]} -eq 0 ]; then
@@ -66,6 +66,8 @@ clean_old() {
     rm -f /etc/modules-load.d/aic8800.conf /etc/modules-load.d/aic_bt.conf
     rm -f /etc/systemd/system/aic8800-bluetooth-up.service
     systemctl disable aic8800-bluetooth-up.service 2>/dev/null || true
+    dkms remove aic8800-usb/1.0 --all 2>/dev/null || true
+    rm -rf /usr/src/aic8800-usb-1.0
     depmod -a
 }
 
@@ -123,6 +125,47 @@ install_modules() {
     install -p -m 644 "$DRV_DIR/aic_btusb/aic_btusb.ko"                 "$MODDEST/"
     depmod -a
     log_info "模块已安装到 $MODDEST"
+}
+
+# 用 DKMS 注册驱动：内核升级后自动为新内核重新编译（无需手动干预）
+dkms_install() {
+    local pkg="aic8800-usb"
+    local ver="1.0"
+    local src_dir="/usr/src/$pkg-$ver"
+    local usb_drv="$SCRIPT_DIR/src/USB/driver_fw/drivers"
+
+    log_info "注册 DKMS（内核升级后自动重建模块）..."
+    dkms remove "$pkg/$ver" --all 2>/dev/null || true
+    rm -rf "$src_dir"
+
+    # 复制驱动源码（清理编译产物）
+    mkdir -p "$src_dir/USB/driver_fw"
+    cp -r "$usb_drv" "$src_dir/USB/driver_fw/drivers"
+    find "$src_dir" \( -name '*.o' -o -name '*.ko' -o -name '*.cmd' -o -name '*.mod' \
+        -o -name '*.mod.c' -o -name '*.symvers' -o -name '*.order' \) -delete
+
+    # 写 dkms.conf（AUTOINSTALL=yes 使内核升级时自动重建）
+    cat > "$src_dir/dkms.conf" <<'EOF'
+PACKAGE_NAME="aic8800-usb"
+PACKAGE_VERSION="1.0"
+CLEAN="make clean"
+MAKE[0]="make -C $kernel_source_dir M=$dkms_tree/$PACKAGE_NAME/$PACKAGE_VERSION/build/USB/driver_fw/drivers/aic8800 && make -C $kernel_source_dir M=$dkms_tree/$PACKAGE_NAME/$PACKAGE_VERSION/build/USB/driver_fw/drivers/aic_btusb"
+BUILT_MODULE_NAME[0]="aic_load_fw"
+BUILT_MODULE_LOCATION[0]="USB/driver_fw/drivers/aic8800/aic_load_fw"
+BUILT_MODULE_NAME[1]="aic8800_fdrv"
+BUILT_MODULE_LOCATION[1]="USB/driver_fw/drivers/aic8800/aic8800_fdrv"
+BUILT_MODULE_NAME[2]="aic_btusb"
+BUILT_MODULE_LOCATION[2]="USB/driver_fw/drivers/aic_btusb"
+DEST_MODULE_LOCATION[0]="/updates/dkms"
+DEST_MODULE_LOCATION[1]="/updates/dkms"
+DEST_MODULE_LOCATION[2]="/updates/dkms"
+AUTOINSTALL="yes"
+EOF
+
+    dkms add "$pkg/$ver" || die "DKMS 注册失败"
+    dkms build "$pkg/$ver" -k "$KVER" || die "DKMS 编译失败，详见 /var/lib/dkms/$pkg/$ver/build/make.log"
+    dkms install "$pkg/$ver" -k "$KVER" || die "DKMS 安装失败"
+    log_info "DKMS 注册完成：$pkg/$ver（内核升级自动重建）"
 }
 
 # 部署隐藏网卡盘功能：1111:1111 虚拟U盘用 UDISKS_IGNORE 忽略（纯配置层，不碰 USB，不干扰 WiFi）
@@ -190,8 +233,7 @@ do_install() {
     patch_bt
     install_firmware
     patch_fw_select
-    build_drivers  || die "编译失败，安装中止"
-    install_modules
+    dkms_install
     install_udisk_off
     load_modules
     setup_autoload
@@ -212,6 +254,8 @@ do_uninstall() {
     modprobe -r aic_btusb_usb aic8800_fdrv_usb aic_load_fw_usb 2>/dev/null || true
 
     rm -rf "$MODDEST"
+    dkms remove aic8800-usb/1.0 --all 2>/dev/null || true
+    rm -rf /usr/src/aic8800-usb-1.0
     rm -rf /lib/firmware/aic8800*
     rm -f /etc/modules-load.d/aic8800.conf /etc/modules-load.d/aic_bt.conf
     rm -f /etc/systemd/system/aic8800-bluetooth-up.service
