@@ -161,7 +161,9 @@ verify() {
     local i
     for i in $(seq 1 15); do
         iface=$(ip -br link 2>/dev/null | grep -oE '(wlx|wlan)[0-9a-f]*' | head -1)
-        [ -n "$iface" ] && break
+        if [ -n "$iface" ]; then
+            break
+        fi
         sleep 1
     done
     if [ -n "$iface" ]; then
